@@ -1,0 +1,7 @@
+[workspace]
+resolver = "3"
+members = ["crates/free"]
+default-members = ["crates/free"]
+
+[workspace.dependencies]
+winit = "0.30.13"
