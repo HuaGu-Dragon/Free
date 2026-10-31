@@ -2,6 +2,14 @@ use std::sync::Arc;
 
 use winit::{dpi::PhysicalSize, event_loop::OwnedDisplayHandle, window::Window};
 
+use crate::{
+    state::{buffer::TileBuffer, pipeline::TilePipeline},
+    tiles::Tile,
+};
+
+mod buffer;
+mod pipeline;
+
 pub struct State {
     instance: wgpu::Instance,
     window: Arc<Window>,
@@ -10,6 +18,9 @@ pub struct State {
     size: PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     texture_format: wgpu::TextureFormat,
+
+    tile_pipeline: pipeline::TilePipeline,
+    tile_buffer: buffer::TileBuffer,
 }
 
 impl State {
@@ -32,6 +43,21 @@ impl State {
         let cap = surface.get_capabilities(&adapter);
         let texture_format = cap.formats[0];
 
+        let font_pipeline = TilePipeline::new(&device, texture_format);
+        let mut font_buffer = TileBuffer::new(&device, 1024);
+
+        font_buffer.push(Tile {
+            glyph: 0,
+            foreground_color: [0.0, 0.0, 0.0, 1.0],
+            background_color: [1.0, 0.0, 0.0, 1.0],
+        });
+        font_buffer.push(Tile {
+            glyph: 0,
+            foreground_color: [0.0, 0.0, 0.0, 1.0],
+            background_color: [0.0, 1.0, 0.0, 1.0],
+        });
+        font_buffer.write(&queue);
+
         let state = State {
             instance,
             window,
@@ -40,6 +66,9 @@ impl State {
             size,
             surface,
             texture_format,
+
+            tile_pipeline: font_pipeline,
+            tile_buffer: font_buffer,
         };
 
         // Configure surface for the first time
@@ -107,7 +136,7 @@ impl State {
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
         // Create the renderpass which will clear the screen.
-        let renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &texture_view,
@@ -125,6 +154,9 @@ impl State {
         });
 
         // If you wanted to call any drawing commands, they would go here.
+        renderpass.set_pipeline(&self.tile_pipeline.render_pipeline);
+        renderpass.set_vertex_buffer(0, self.tile_buffer.vertex_buffer.slice(..));
+        renderpass.draw(0..4, 0..self.tile_buffer.len() as u32);
 
         // End the renderpass.
         drop(renderpass);

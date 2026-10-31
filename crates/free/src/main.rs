@@ -3,6 +3,8 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use crate::app::App;
 
 mod app;
+mod state;
+mod tiles;
 
 fn main() {
     let event_loop = EventLoop::new().expect("failed to create event loop");

@@ -7,9 +7,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::app::state::State;
-
-mod state;
+use crate::state::State;
 
 #[derive(Default)]
 pub struct App {
