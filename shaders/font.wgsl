@@ -1,6 +1,20 @@
 const GRID_SIZE = vec2<f32>(60, 60);
 const view_point = vec2<f32>(680, 480);
 
+const FONT_WIDTH: u32 = 128;
+const FONT_HEIGHT: u32 = 64;
+const FONT_COLS: u32 = 18u;
+const FONT_ROWS: u32 = 7u;
+const FONT_CHAR_WIDTH: u32 = FONT_WIDTH / FONT_COLS;
+const FONT_CHAR_HEIGHT: u32 = FONT_HEIGHT / FONT_ROWS;
+const FONT_CHAR_WIDTH_UV: f32 = f32(FONT_CHAR_WIDTH) / f32(FONT_WIDTH);
+const FONT_CHAR_HEIGHT_UV: f32 = f32(FONT_CHAR_HEIGHT) / f32(FONT_HEIGHT);
+
+@group(0) @binding(0)
+var t_diffuse: texture_2d<f32>;
+@group(0) @binding(1)
+var s_diffuse: sampler;
+
 struct VertexInput {
     @builtin(vertex_index) vertex_index: u32,
     @builtin(instance_index) instance_index: u32,
@@ -50,5 +64,16 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(input.background_color);
+    let glyph = input.glyph - 32u;
+    let cell = vec2<f32>(
+        f32(glyph % FONT_COLS) * FONT_CHAR_WIDTH_UV,
+        f32(glyph / FONT_COLS) * FONT_CHAR_HEIGHT_UV,
+    );
+    var pos = vec2f(cell.x, cell.y);
+    var size = vec2f(FONT_CHAR_WIDTH_UV, FONT_CHAR_HEIGHT_UV);
+
+    var t = pos + size * input.uv;
+
+    let mask = textureSample(t_diffuse, s_diffuse, t).r;
+    return mix(input.background_color, input.foreground_color, mask);
 }
