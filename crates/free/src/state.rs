@@ -1,8 +1,11 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use winit::{dpi::PhysicalSize, event_loop::OwnedDisplayHandle, window::Window};
 
-use crate::state::pipeline::TilePipeline;
+use crate::state::pipeline::{Program, TilePipeline};
 
 mod buffer;
 mod pipeline;
@@ -17,6 +20,9 @@ pub struct State {
     texture_format: wgpu::TextureFormat,
 
     tile_pipeline: pipeline::TilePipeline,
+    // FIXME: should this handle by tile_pipeline?
+    last_frame: Instant,
+    runtime: Duration,
 }
 
 impl State {
@@ -39,7 +45,16 @@ impl State {
         let cap = surface.get_capabilities(&adapter);
         let texture_format = cap.formats[0];
 
-        let tile_pipeline = TilePipeline::new(&device, &queue, texture_format);
+        let tile_pipeline = TilePipeline::new(
+            &device,
+            &queue,
+            Program {
+                resolution: [size.width as f32, size.height as f32],
+                elapsed: 0.0,
+                _padding: 0.0,
+            },
+            texture_format,
+        );
 
         let state = State {
             instance,
@@ -51,6 +66,8 @@ impl State {
             texture_format,
 
             tile_pipeline,
+            last_frame: Instant::now(),
+            runtime: Duration::default(),
         };
 
         // Configure surface for the first time
@@ -81,11 +98,19 @@ impl State {
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
         self.size = size;
+        self.tile_pipeline.resize(&self.queue, size);
 
         self.configure_surface();
     }
 
     pub fn render(&mut self) {
+        let now = Instant::now();
+        let detla = now.duration_since(self.last_frame);
+        self.last_frame = now;
+        self.runtime += detla;
+
+        self.tile_pipeline.update(&self.queue, self.runtime);
+
         let surface_texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture) => texture,
             wgpu::CurrentSurfaceTexture::Occluded | wgpu::CurrentSurfaceTexture::Timeout => return,
@@ -138,6 +163,7 @@ impl State {
         // TODO: refactor this
         renderpass.set_pipeline(&self.tile_pipeline.render_pipeline);
         renderpass.set_bind_group(0, &self.tile_pipeline.diffuse_bind_group, &[]);
+        renderpass.set_bind_group(1, &self.tile_pipeline.program_bind_group, &[]);
         renderpass.set_vertex_buffer(0, self.tile_pipeline.tile_buffer.vertex_buffer.slice(..));
         renderpass.draw(0..4, 0..self.tile_pipeline.tile_buffer.len() as u32);
 

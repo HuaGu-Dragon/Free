@@ -1,17 +1,32 @@
+use std::time::Duration;
+
 use image::GenericImageView;
+use wgpu::util::DeviceExt;
+use winit::dpi::PhysicalSize;
 
 use crate::{state::buffer::TileBuffer, tiles::Tile};
 
 pub struct TilePipeline {
     pub render_pipeline: wgpu::RenderPipeline,
     pub diffuse_bind_group: wgpu::BindGroup,
+    pub program_bind_group: wgpu::BindGroup,
     pub tile_buffer: TileBuffer,
+    pub program_buffer: wgpu::Buffer,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Program {
+    pub resolution: [f32; 2],
+    pub elapsed: f32,
+    pub _padding: f32,
 }
 
 impl TilePipeline {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        program: Program,
         texture_format: wgpu::TextureFormat,
     ) -> Self {
         let diffuse_bytes = include_bytes!("../../../../fonts/ascii.png");
@@ -104,6 +119,22 @@ impl TilePipeline {
                 label: Some("texture_bind_group_layout"),
             });
 
+        // FIXME: think about a better name here..
+        let program_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("program_bind_group_layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
         let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
             entries: &[
@@ -119,6 +150,21 @@ impl TilePipeline {
             label: Some("diffuse_bind_group"),
         });
 
+        let program_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Program Buffer"),
+            contents: bytemuck::bytes_of(&program),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let program_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("program_bind_group"),
+            layout: &program_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: program_buffer.as_entire_binding(),
+            }],
+        });
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../../../shaders/font.wgsl").into()),
@@ -127,7 +173,10 @@ impl TilePipeline {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Tile Pipeline Layout"),
-                bind_group_layouts: &[Some(&texture_bind_group_layout)],
+                bind_group_layouts: &[
+                    Some(&texture_bind_group_layout),
+                    Some(&program_bind_group_layout),
+                ],
                 immediate_size: 0,
             });
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -173,7 +222,7 @@ impl TilePipeline {
 
         let mut tile_buffer = TileBuffer::new(device, 1024);
 
-        for s in b"Hello World" {
+        for s in b"Hello, World!" {
             tile_buffer.push(Tile {
                 glyph: *s as u32,
                 foreground_color: [1.0, 1.0, 1.0, 1.0],
@@ -185,7 +234,28 @@ impl TilePipeline {
         Self {
             render_pipeline,
             diffuse_bind_group,
+            program_bind_group,
             tile_buffer,
+            program_buffer,
         }
+    }
+
+    pub fn resize(&mut self, queue: &wgpu::Queue, size: PhysicalSize<u32>) {
+        // TODO: resize the tile buffer size
+        let resolution = [size.width as f32, size.height as f32];
+        let offset = std::mem::offset_of!(Program, resolution) as wgpu::BufferAddress;
+
+        queue.write_buffer(
+            &self.program_buffer,
+            offset,
+            bytemuck::bytes_of(&resolution),
+        );
+    }
+
+    pub fn update(&mut self, queue: &wgpu::Queue, elapsed: Duration) {
+        let elapsed = elapsed.as_secs_f32();
+        let offset = std::mem::offset_of!(Program, elapsed) as wgpu::BufferAddress;
+
+        queue.write_buffer(&self.program_buffer, offset, bytemuck::bytes_of(&elapsed));
     }
 }
