@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use winit::{dpi::PhysicalSize, event_loop::OwnedDisplayHandle, window::Window};
 
-use crate::{
-    state::{buffer::TileBuffer, pipeline::TilePipeline},
-    tiles::Tile,
-};
+use crate::state::pipeline::TilePipeline;
 
 mod buffer;
 mod pipeline;
@@ -20,7 +17,6 @@ pub struct State {
     texture_format: wgpu::TextureFormat,
 
     tile_pipeline: pipeline::TilePipeline,
-    tile_buffer: buffer::TileBuffer,
 }
 
 impl State {
@@ -43,17 +39,7 @@ impl State {
         let cap = surface.get_capabilities(&adapter);
         let texture_format = cap.formats[0];
 
-        let font_pipeline = TilePipeline::new(&device, &queue, texture_format);
-        let mut font_buffer = TileBuffer::new(&device, 1024);
-
-        for s in b"Hello World" {
-            font_buffer.push(Tile {
-                glyph: *s as u32,
-                foreground_color: [1.0, 1.0, 1.0, 1.0],
-                background_color: [0.0, 0.0, 0.0, 1.0],
-            });
-        }
-        font_buffer.write(&queue);
+        let tile_pipeline = TilePipeline::new(&device, &queue, texture_format);
 
         let state = State {
             instance,
@@ -64,8 +50,7 @@ impl State {
             surface,
             texture_format,
 
-            tile_pipeline: font_pipeline,
-            tile_buffer: font_buffer,
+            tile_pipeline,
         };
 
         // Configure surface for the first time
@@ -150,11 +135,11 @@ impl State {
             multiview_mask: None,
         });
 
-        // If you wanted to call any drawing commands, they would go here.
+        // TODO: refactor this
         renderpass.set_pipeline(&self.tile_pipeline.render_pipeline);
         renderpass.set_bind_group(0, &self.tile_pipeline.diffuse_bind_group, &[]);
-        renderpass.set_vertex_buffer(0, self.tile_buffer.vertex_buffer.slice(..));
-        renderpass.draw(0..4, 0..self.tile_buffer.len() as u32);
+        renderpass.set_vertex_buffer(0, self.tile_pipeline.tile_buffer.vertex_buffer.slice(..));
+        renderpass.draw(0..4, 0..self.tile_pipeline.tile_buffer.len() as u32);
 
         // End the renderpass.
         drop(renderpass);
