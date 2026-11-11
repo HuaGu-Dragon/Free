@@ -7,11 +7,13 @@ use winit::dpi::PhysicalSize;
 use crate::{state::buffer::TileBuffer, tiles::Tile};
 
 pub struct TilePipeline {
-    pub render_pipeline: wgpu::RenderPipeline,
     pub diffuse_bind_group: wgpu::BindGroup,
     pub program_bind_group: wgpu::BindGroup,
+
     pub tile_buffer: TileBuffer,
     pub program_buffer: wgpu::Buffer,
+
+    pub render_pipeline: wgpu::RenderPipeline,
 }
 
 #[repr(C)]
@@ -223,11 +225,14 @@ impl TilePipeline {
         let mut tile_buffer = TileBuffer::new(device, 1024);
 
         for s in b"Hello, World!" {
-            tile_buffer.push(Tile {
-                glyph: *s as u32,
-                foreground_color: [1.0, 1.0, 1.0, 1.0],
-                background_color: [0.0, 0.0, 0.0, 1.0],
-            });
+            tile_buffer.push(
+                device,
+                Tile {
+                    glyph: *s as u32,
+                    foreground_color: [1.0, 1.0, 1.0, 1.0],
+                    background_color: [0.0, 0.0, 0.0, 1.0],
+                },
+            );
         }
         tile_buffer.write(queue);
 
