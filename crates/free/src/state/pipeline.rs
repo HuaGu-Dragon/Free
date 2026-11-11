@@ -4,13 +4,13 @@ use image::GenericImageView;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
-use crate::{state::buffer::TileBuffer, tiles::Tile};
+use crate::{state::buffer::Buffer, tiles::Tile};
 
 pub struct TilePipeline {
     pub diffuse_bind_group: wgpu::BindGroup,
     pub program_bind_group: wgpu::BindGroup,
 
-    pub tile_buffer: TileBuffer,
+    pub tile_buffer: Buffer<Tile>,
     pub program_buffer: wgpu::Buffer,
 
     pub render_pipeline: wgpu::RenderPipeline,
@@ -222,7 +222,7 @@ impl TilePipeline {
             cache: None,
         });
 
-        let mut tile_buffer = TileBuffer::new(device, 1024);
+        let mut tile_buffer = Buffer::new(device, 1024);
 
         for s in b"Hello, World!" {
             tile_buffer.push(

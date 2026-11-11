@@ -1,15 +1,13 @@
 use std::mem::MaybeUninit;
 
-use crate::tiles::Tile;
-
-pub struct TileBuffer {
-    data: Box<[MaybeUninit<Tile>]>,
+pub struct Buffer<T> {
+    data: Box<[MaybeUninit<T>]>,
     len: usize,
     capacity: usize,
     pub vertex_buffer: wgpu::Buffer,
 }
 
-impl TileBuffer {
+impl<T> Buffer<T> {
     pub fn new(device: &wgpu::Device, capacity: usize) -> Self {
         let capacity = capacity.max(1);
 
@@ -24,28 +22,27 @@ impl TileBuffer {
     }
 
     fn create_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
-        let size = (capacity * std::mem::size_of::<Tile>()) as wgpu::BufferAddress;
+        let size = (capacity * std::mem::size_of::<T>()) as wgpu::BufferAddress;
 
         device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Tile Buffer"),
+            // TODO: use `const_format` to labelled it to `std::any::type_name::<T>() Buffer"`
+            label: Some(std::any::type_name::<T>()),
             size,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         })
     }
 
-    fn create_data(capacity: usize) -> Box<[MaybeUninit<Tile>]> {
-        let data = vec![MaybeUninit::uninit(); capacity];
-
-        data.into_boxed_slice()
+    fn create_data(capacity: usize) -> Box<[MaybeUninit<T>]> {
+        Box::new_uninit_slice(capacity)
     }
 
-    pub fn push(&mut self, device: &wgpu::Device, value: Tile) {
+    pub fn push(&mut self, device: &wgpu::Device, value: T) {
         if self.len == self.capacity {
             let new_capa = self
                 .capacity
                 .checked_mul(2)
-                .expect("TileBuffer capacity overflow");
+                .expect("buffer capacity overflow");
             self.resize(device, new_capa);
         }
 
@@ -53,7 +50,10 @@ impl TileBuffer {
         self.len += 1;
     }
 
-    pub fn write(&mut self, queue: &wgpu::Queue) {
+    pub fn write(&self, queue: &wgpu::Queue)
+    where
+        T: bytemuck::NoUninit,
+    {
         if self.len == 0 {
             return;
         }
@@ -82,5 +82,12 @@ impl TileBuffer {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+}
+
+impl<T> Drop for Buffer<T> {
+    fn drop(&mut self) {
+        // SAFETY: `push` only init [0..self.len)，resize would keep this area
+        unsafe { self.data[..self.len].assume_init_drop() };
     }
 }
