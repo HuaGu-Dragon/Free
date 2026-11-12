@@ -1,93 +1,68 @@
-use std::mem::MaybeUninit;
-
 pub struct Buffer<T> {
-    data: Box<[MaybeUninit<T>]>,
-    len: usize,
-    capacity: usize,
-    pub vertex_buffer: wgpu::Buffer,
+    data: Vec<T>,
+    gpu_capacity: usize,
+    pub buffer: wgpu::Buffer,
 }
 
 impl<T> Buffer<T> {
     pub fn new(device: &wgpu::Device, capacity: usize) -> Self {
-        let capacity = capacity.max(1);
+        let gpu_capacity = capacity.max(1);
 
-        let vertex_buffer = Self::create_buffer(device, capacity);
+        let buffer = Self::create_buffer(device, gpu_capacity, false);
 
         Self {
-            data: Self::create_data(capacity),
-            len: 0,
-            capacity,
-            vertex_buffer,
+            data: Vec::with_capacity(capacity),
+            gpu_capacity,
+            buffer,
         }
     }
 
-    fn create_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
-        let size = (capacity * std::mem::size_of::<T>()) as wgpu::BufferAddress;
+    fn create_buffer(device: &wgpu::Device, capacity: usize, mapped: bool) -> wgpu::Buffer {
+        let size = capacity
+            .checked_mul(std::mem::size_of::<T>())
+            .expect("buffer size overflow") as wgpu::BufferAddress;
+        let label = &format!("{} Buffer", std::any::type_name::<T>());
 
         device.create_buffer(&wgpu::BufferDescriptor {
             // TODO: use `const_format` to labelled it to `std::any::type_name::<T>() Buffer"`
-            label: Some(std::any::type_name::<T>()),
+            label: Some(&label),
             size,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
+            mapped_at_creation: mapped,
         })
     }
 
-    fn create_data(capacity: usize) -> Box<[MaybeUninit<T>]> {
-        Box::new_uninit_slice(capacity)
+    pub fn push(&mut self, value: T) {
+        self.data.push(value);
     }
 
-    pub fn push(&mut self, device: &wgpu::Device, value: T) {
-        if self.len == self.capacity {
-            let new_capa = self
-                .capacity
-                .checked_mul(2)
-                .expect("buffer capacity overflow");
-            self.resize(device, new_capa);
-        }
-
-        self.data[self.len].write(value);
-        self.len += 1;
-    }
-
-    pub fn write(&self, queue: &wgpu::Queue)
+    pub fn flush(&mut self, device: &wgpu::Device, queue: &wgpu::Queue)
     where
         T: bytemuck::NoUninit,
     {
-        if self.len == 0 {
+        if self.data.len() > self.gpu_capacity {
+            let new_cap = self.data.capacity();
+            let buffer = Self::create_buffer(device, new_cap, true);
+            {
+                let bytes: &[u8] = bytemuck::cast_slice(&self.data);
+                // TODO: replace `unwrap` with `expect`
+                let mut view = buffer
+                    .slice(..bytes.len() as u64)
+                    .get_mapped_range_mut()
+                    .expect("");
+                view.copy_from_slice(bytes);
+            }
+
+            buffer.unmap();
+            self.buffer = buffer;
+            self.gpu_capacity = new_cap;
             return;
         }
 
-        // SAFETY: `push` only init [0..self.len)，resize would keep this area
-        let init = unsafe { self.data[..self.len].assume_init_ref() };
-
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(init));
-    }
-
-    fn resize(&mut self, device: &wgpu::Device, new_capa: usize) {
-        if new_capa <= self.capacity {
-            return;
-        }
-
-        let mut new_data = Self::create_data(new_capa);
-
-        unsafe {
-            std::ptr::copy_nonoverlapping(self.data.as_ptr(), new_data.as_mut_ptr(), self.len);
-        }
-
-        self.data = new_data;
-        self.vertex_buffer = Self::create_buffer(device, new_capa);
-        self.capacity = new_capa;
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&self.data));
     }
 
     pub fn len(&self) -> usize {
-        self.len
-    }
-}
-
-impl<T> Drop for Buffer<T> {
-    fn drop(&mut self) {
-        // SAFETY: `push` only init [0..self.len)，resize would keep this area
-        unsafe { self.data[..self.len].assume_init_drop() };
+        self.data.len()
     }
 }

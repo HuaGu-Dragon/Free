@@ -225,16 +225,13 @@ impl TilePipeline {
         let mut tile_buffer = Buffer::new(device, 1024);
 
         for s in b"Hello, World!" {
-            tile_buffer.push(
-                device,
-                Tile {
-                    glyph: *s as u32,
-                    foreground_color: [1.0, 1.0, 1.0, 1.0],
-                    background_color: [0.0, 0.0, 0.0, 1.0],
-                },
-            );
+            tile_buffer.push(Tile {
+                glyph: *s as u32,
+                foreground_color: [1.0, 1.0, 1.0, 1.0],
+                background_color: [0.0, 0.0, 0.0, 1.0],
+            });
         }
-        tile_buffer.write(queue);
+        tile_buffer.flush(device, queue);
 
         Self {
             render_pipeline,
