@@ -164,7 +164,7 @@ impl State {
         renderpass.set_pipeline(&self.tile_pipeline.render_pipeline);
         renderpass.set_bind_group(0, &self.tile_pipeline.diffuse_bind_group, &[]);
         renderpass.set_bind_group(1, &self.tile_pipeline.program_bind_group, &[]);
-        renderpass.set_vertex_buffer(0, self.tile_pipeline.tile_buffer.buffer.slice(..));
+        renderpass.set_vertex_buffer(0, self.tile_pipeline.tile_buffer.slice());
         renderpass.draw(0..4, 0..self.tile_pipeline.tile_buffer.len() as u32);
 
         // End the renderpass.

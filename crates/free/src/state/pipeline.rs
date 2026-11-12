@@ -231,6 +231,15 @@ impl TilePipeline {
                 background_color: [0.0, 0.0, 0.0, 1.0],
             });
         }
+
+        tile_buffer.clear();
+        for s in b"Test" {
+            tile_buffer.push(Tile {
+                glyph: *s as u32,
+                foreground_color: [1.0, 1.0, 1.0, 1.0],
+                background_color: [0.0, 0.0, 0.0, 1.0],
+            });
+        }
         tile_buffer.flush(device, queue);
 
         Self {
