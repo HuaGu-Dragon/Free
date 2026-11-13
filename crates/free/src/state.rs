@@ -7,7 +7,6 @@ use winit::{dpi::PhysicalSize, event_loop::OwnedDisplayHandle, window::Window};
 
 use crate::state::pipeline::{Program, TilePipeline};
 
-mod buffer;
 mod pipeline;
 
 pub struct State {

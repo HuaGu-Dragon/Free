@@ -1,5 +1,3 @@
-// TODO: move this to a seperate crate
-
 use std::ops::Range;
 
 pub struct Buffer<T> {
@@ -100,6 +98,11 @@ impl<T> Buffer<T> {
 
     pub fn len(&self) -> usize {
         self.data.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 
     pub fn slice(&self) -> wgpu::BufferSlice<'_> {

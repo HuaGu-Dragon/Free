@@ -1,10 +1,11 @@
 use std::time::Duration;
 
+use buffer::Buffer;
 use image::GenericImageView;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
-use crate::{state::buffer::Buffer, tiles::Tile};
+use crate::tiles::Tile;
 
 pub struct TilePipeline {
     pub diffuse_bind_group: wgpu::BindGroup,
