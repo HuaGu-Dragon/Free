@@ -8,13 +8,13 @@ use winit::dpi::PhysicalSize;
 use crate::tiles::Tile;
 
 pub struct TilePipeline {
-    pub diffuse_bind_group: wgpu::BindGroup,
-    pub program_bind_group: wgpu::BindGroup,
+    diffuse_bind_group: wgpu::BindGroup,
+    program_bind_group: wgpu::BindGroup,
 
-    pub tile_buffer: Buffer<Tile>,
-    pub program_buffer: wgpu::Buffer,
+    tile_buffer: Buffer<Tile>,
+    program_buffer: wgpu::Buffer,
 
-    pub render_pipeline: wgpu::RenderPipeline,
+    render_pipeline: wgpu::RenderPipeline,
 }
 
 #[repr(C)]
@@ -253,7 +253,6 @@ impl TilePipeline {
     }
 
     pub fn resize(&mut self, queue: &wgpu::Queue, size: PhysicalSize<u32>) {
-        // TODO: resize the tile buffer size
         let resolution = [size.width as f32, size.height as f32];
         let offset = std::mem::offset_of!(Program, resolution) as wgpu::BufferAddress;
 
@@ -269,5 +268,17 @@ impl TilePipeline {
         let offset = std::mem::offset_of!(Program, elapsed) as wgpu::BufferAddress;
 
         queue.write_buffer(&self.program_buffer, offset, bytemuck::bytes_of(&elapsed));
+    }
+
+    pub fn render(&self, pass: &mut wgpu::RenderPass) {
+        if self.tile_buffer.is_empty() {
+            return;
+        }
+
+        pass.set_pipeline(&self.render_pipeline);
+        pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+        pass.set_bind_group(1, &self.program_bind_group, &[]);
+        pass.set_vertex_buffer(0, self.tile_buffer.slice());
+        pass.draw(0..4, 0..self.tile_buffer.len() as u32);
     }
 }

@@ -159,12 +159,7 @@ impl State {
             multiview_mask: None,
         });
 
-        // TODO: refactor this
-        renderpass.set_pipeline(&self.tile_pipeline.render_pipeline);
-        renderpass.set_bind_group(0, &self.tile_pipeline.diffuse_bind_group, &[]);
-        renderpass.set_bind_group(1, &self.tile_pipeline.program_bind_group, &[]);
-        renderpass.set_vertex_buffer(0, self.tile_pipeline.tile_buffer.slice());
-        renderpass.draw(0..4, 0..self.tile_pipeline.tile_buffer.len() as u32);
+        self.tile_pipeline.render(&mut renderpass);
 
         // End the renderpass.
         drop(renderpass);
